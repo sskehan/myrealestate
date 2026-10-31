@@ -1,4 +1,4 @@
-# My Real Estate — investment property analyser (version 1.03)
+# My Real Estate — investment property analyser (version 1.04)
 
 It does what the 2025 Property Analyser Calculator workbook did: a 10-year report for each property showing value, loans, equity, yields, cash flow before and after tax, tax refunds per owner, wealth gained and who pays. On top of that it has:
 - saved properties and scenarios
@@ -141,6 +141,10 @@ Run in "workbook mode", the engine reproduces the Schofields and Mt Duneed workb
 When a file changes, `APP_VERSION` in `app.js` and `VERSION` in `sw.js` change together. Versions go 1.0, 1.01, 1.02 and so on.
 
 ## Version history
+- **1.04**
+  - Preloaded properties that were edited on a phone before an update now get the corrected figures too. Only fields that still hold an older preloaded figure are replaced, so anything you typed in (today's value, photo, your own figures) is kept.
+  - "Still to confirm" items that the new figures answer are removed; ticked-off ones stay ticked off.
+  - Fixes Mt Duneed still showing the pre-1.03 loan (6% interest only), $625 rent and cash-paid costs on phones where it had been edited.
 - **1.03**
   - Dropbox App key built in.
   - **Loan buffer** line: borrowed on the equity loan and held as cash. It adds to the loan and the (deductible) interest but isn't a purchase cost.

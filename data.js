@@ -114,7 +114,40 @@
   ];
 
   const OLD_INCOMES = { "p-shaun": 148000, "p-lyndsey": 155000 }; // the incomes earlier versions preloaded
-  const SEED_VERSION = 3; // bump when the preloaded figures change: unedited preloaded properties on each phone pick up the new ones
-  const api = { SETTINGS, PROPERTIES, SEED_VERSION, OLD_INCOMES };
+
+  /* PATCHES — for preloaded properties that HAVE been edited on a phone (so weren't replaced wholesale).
+     Each field is replaced with today's preloaded value only if it still holds a value an earlier version preloaded;
+     anything typed in on the phone (today's value, photo, other changes) is kept. "Still to confirm" items that the new
+     figures answer are removed; new ones are added; ones already ticked off stay ticked off. */
+  const IO_OLD = { rate: "", type: "IO" };
+  const PATCHES = [
+    { id: "pr-schofields", fields: {
+        street: ["Unit 227/4 Taupe Glade"], purchaseDate: ["", null], equityDeposit: [144000], loanBuffer: [null, "", 0],
+        purchaseCosts: [[pc("Legals (solicitor/conveyancer)", 2750, "equity"), pc("Stamp duty", 26778, "equity"), pc("Other costs", 20000, "equity"), pc("Capital improvements", 0, "cash")]],
+        loanCosts: [[pc("Loan establishment fees", 1500, "equity"), pc("Property valuation", 300, "equity"), pc("LMI", 0, "equity"), pc("Other loan costs", 0, "cash")]],
+        loan: [{ amountMode: "auto", rate: 0.0579, type: "IO", ioYears: 0, termYears: 30 }], equityLoan: [IO_OLD], mgmtPct: [0.077], lettingWeeks: [1.5714],
+        expenses: [[ex("Council rates", 1231), ex("Building insurance", 0), ex("Landlord insurance", 300), ex("Strata / body corporate", 4184), ex("Land tax", 370), ex("Other expenses", 3480)],
+          [ex("Council rates", 1811.50), ex("Water (fixed charges)", 810), ex("Building ins. (in strata)", 0), ex("Landlord insurance", 300), ex("Strata levies", 4184.80), ex("Land tax", 370), ex("Other expenses", 3480)]],
+        depStartFy: [null, ""], depreciation: [fill([15418, 18685, 16437, 14744, 13639], 10, 0.06)],
+        notes: ["Previously 38 Manchester Road. Managed by Aland. Strata $1,046 a quarter. Letting fee kept at $1,100 (shown as weeks of rent).",
+          "Lot 353 SP 109691 (Jasmine, Schofield Gardens); the depreciation schedule calls it Unit B207 [Door 227]. Managed by Aland. Strata $1,046.20 a quarter incl. GST (admin $883.20 + capital works $163.00) — covers building insurance. Council rates 2025-26 were $1,617.85 for 9 Aug–30 Jun (326 days): full year about $1,811.50 (minimum ordinary rate $1,140, waste $659, stormwater $12.50). Sydney Water fixed charges about $810 a year (water ~$118, sewerage ~$692); usage is passed on to the tenant. Letting fee kept at $1,100 (shown as weeks of rent). Depreciation from Depreciator job #141697, diminishing value."] },
+      resolved: ["Purchase date", "Aland management % (7.7% is the template default)", "Years left on loan", "Building insurance (blank — strata?)", "What the $3,480 'Other' and $20,000 'Other costs' are",
+        "Settlement date — council rates and water start 8–9 Aug 2025, but the depreciation schedule says exchanged 9 Sep 2025 and first available to rent 30 Sep 2025", "Years left on the loan",
+        "Land tax — likely $0: the unit's land value is $46,838, far below the NSW threshold, unless you own other NSW investment land", "What the $3,480 'Other expenses' covers (water is now its own line — make sure it isn't counted twice)",
+        "What the $20,000 'Other costs' at purchase was", "Depreciation method your accountant claims (diminishing value used; prime cost would be $12,614 in 2025-26)"],
+      add: [["Loan term left — 28.9 years assumed (30 years from Oct 2025)", null]] },
+    { id: "pr-mtduneed", fields: {
+        purchaseDate: ["", null], startDate: ["2026-11-15"], loanBuffer: [null, "", 0],
+        purchaseCosts: [[pc("Legals (solicitor/conveyancer)", 3650, "cash"), pc("Stamp duty", 0, "cash", "duty"), pc("Other costs", 20000, "cash"), pc("Capital improvements", 0, "cash")]],
+        loanCosts: [[pc("Loan establishment fees", 0, "cash"), pc("Property valuation", 380, "cash"), pc("LMI", 0, "cash"), pc("Other loan costs", 970, "cash")]],
+        loan: [{ amountMode: "auto", rate: 0.06, type: "IO", ioYears: 0, termYears: 30 }], equityLoan: [IO_OLD],
+        rent: [{ weeks: 52, pw: 625, vacant: 2, shortStay: { mode: "none", seasons: [] } }],
+        notes: ["Brooklyn 177 Mantra by Royston Homes. Land $320,000 + build $370,140; stamp duty on the land only. Ray White Highton — 6.60% management, 1.65 weeks letting fee (incl GST)."] },
+      resolved: ["Interest rate (6% is the template default)", "Handover / settlement date", "Rent ($625 is the middle of Ray White's $600–650)", "What the $20,000 'Other costs' is"],
+      add: [["Depreciation schedule (estimates from the workbook)", "Depreciation schedule"], ["Council rates, insurance and land tax (workbook estimates until the first notices)", null],
+        ["Ray White lease renewal fee — the 1.65-week letting fee is applied every year until known", null], ["Loan term — 30 years from April 2026 assumed", null], ["Today's value (contract price used)", null]] }
+  ];
+  const SEED_VERSION = 4; // bump when the preloaded figures change: unedited preloaded properties on each phone pick up the new ones
+  const api = { SETTINGS, PROPERTIES, SEED_VERSION, OLD_INCOMES, PATCHES };
   if (typeof module !== "undefined" && module.exports) module.exports = api; else root.SEED = api;
 })(typeof window !== "undefined" ? window : globalThis);

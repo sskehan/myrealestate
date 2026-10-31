@@ -1,7 +1,7 @@
 "use strict";
 /* My Real Estate — investment property analyser for Shaun and Lyndsey. Data lives on each phone (IndexedDB) with a shared live copy in Dropbox.
    The numbers all come from engine.js; the starting rules and preloaded properties from data.js. */
-const APP_ID = "my-real-estate", APP_VERSION = "1.03", BACKUP_VERSION = 1;
+const APP_ID = "my-real-estate", APP_VERSION = "1.04", BACKUP_VERSION = 1;
 
 /* ================= storage ================= */
 const STORES = ["props", "files", "meta"];
@@ -1115,6 +1115,22 @@ async function seedUpdate() {
   _quiet++;
   try { for (const sp of SEED.PROPERTIES) { const cur = S.props.find(x => x.id === sp.id); if (tomb[sp.id] || (cur && cur._t)) continue; if (!cur && S.meta.seedVersion) continue;
       const c = clone(sp); if (cur && cur.photo) c.photo = cur.photo; await tx("props", "readwrite", os => os.put(c)); n++; } } finally { _quiet--; }
+  // edited preloaded properties: replace only the fields that still hold an earlier version's preloaded figures
+  const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+  for (const pt of SEED.PATCHES || []) {
+    const cur = S.props.find(x => x.id === pt.id), sp = SEED.PROPERTIES.find(x => x.id === pt.id); if (!cur || !sp || !cur._t) continue;
+    let ch = 0;
+    for (const [f, olds] of Object.entries(pt.fields)) if (olds.some(o => same(cur[f], o)) && !same(cur[f], sp[f])) { cur[f] = clone(sp[f]); ch++; }
+    let ph = (cur.placeholders || []).filter(t => !pt.resolved.includes(t));
+    for (const [t, replaces] of pt.add || []) {
+      if (ph.includes(t)) continue;
+      if (replaces) { const i = ph.indexOf(replaces); if (i >= 0) ph[i] = t; continue; }
+      if (/^Today's value/.test(t) && N(cur.marketValue) !== N(cur.price)) continue; // already entered
+      ph.push(t);
+    }
+    if (!same(ph, cur.placeholders || [])) { cur.placeholders = ph; ch++; }
+    if (ch) { await saveProp(cur); n++; }
+  }
   // incomes: if Settings → People still holds the old preloaded figures, move them to the new ones
   if (S.meta.settings && S.meta.settings.people) { const old = SEED.OLD_INCOMES || {}; let ch = false;
     for (const sp of SEED.SETTINGS.people) { const cur = S.meta.settings.people.find(x => x.id === sp.id); if (cur && old[sp.id] != null && cur.income === old[sp.id] && cur.income !== sp.income) { cur.income = sp.income; delete cur.check; ch = true; } }
