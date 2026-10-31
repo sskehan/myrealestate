@@ -1,0 +1,18 @@
+{
+  "id": "./?app=my-real-estate",
+  "name": "My Real Estate",
+  "short_name": "Real Estate",
+  "description": "Investment property analyser for Shaun and Lyndsey: 10-year reports, what-if on rent and rates, quick checks and comparisons. Works offline; shared through Dropbox.",
+  "start_url": "./?app=my-real-estate",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#1f2a37",
+  "theme_color": "#1f2a37",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Quick check", "short_name": "Quick check", "url": "./?go=quick", "icons": [{ "src": "icon-192.png", "sizes": "192x192" }] }
+  ]
+}
