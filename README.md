@@ -1,4 +1,4 @@
-# My Real Estate — investment property analyser (version 1.01)
+# My Real Estate — investment property analyser (version 1.03)
 
 It does what the 2025 Property Analyser Calculator workbook did: a 10-year report for each property showing value, loans, equity, yields, cash flow before and after tax, tax refunds per owner, wealth gained and who pays. On top of that it has:
 - saved properties and scenarios
@@ -33,7 +33,7 @@ Only program files go in this repository. It is public, so **never upload a back
    Leave **Allow public clients (Implicit Grant & PKCE)** set to **Allow**.
 5. Copy the **App key**. You never need the App secret.
 
-Until the App key is built in, paste it in the app: **Settings → Dropbox & backup file → Dropbox App key**. Send me the key and I'll build it into 1.01, like Our Tax.
+Done: the app is **MyRealEstate** and its App key `k12i1gnu147hl61` is built in, so there's nothing to paste.
 
 ## 3. Install on each phone
 1. Open the app address in **Samsung Internet** (or Chrome).
@@ -141,6 +141,34 @@ Run in "workbook mode", the engine reproduces the Schofields and Mt Duneed workb
 When a file changes, `APP_VERSION` in `app.js` and `VERSION` in `sw.js` change together. Versions go 1.0, 1.01, 1.02 and so on.
 
 ## Version history
+- **1.03**
+  - Dropbox App key built in.
+  - **Loan buffer** line: borrowed on the equity loan and held as cash. It adds to the loan and the (deductible) interest but isn't a purchase cost.
+  - The main loan and each property's share of the equity loan can be set to today's balance, with the equity loan's own term.
+  - "Leasing / renewal fee" replaces "letting fee".
+  - Schofields updated from the settlement letter, Aland agreement, loan app screens and tax return:
+    - settled 2 Oct 2025
+    - main loan $541,485.79 at 5.94% P&I
+    - equity share $186,321.98 at 6.44% P&I
+    - actual stamp duty, legals, adjustments and lender fees
+    - 5.5% management and a half-week renewal fee
+    - bank fees
+    - no landlord insurance or land tax
+  - Mt Duneed updated:
+    - land settled 8 Apr 2026, rent $600/wk from 1 Dec 2026
+    - 6.94% interest only for 5 years, then P&I
+    - equity share $170,510.84 at 6.44% P&I
+    - all costs and the $20k buffer from the equity loan
+  - Incomes updated to Shaun $155,000 and Lyndsey $205,000 (only if they hadn't already been changed on the phone).
+- **1.02**
+  - Depreciation can be entered by financial year, straight from a quantity surveyor's schedule. Each figure lines up with its own tax year wherever the projection starts, with up to 20 years.
+  - Schofields updated from your documents:
+    - council rates $1,811.50 a year (full-year equivalent)
+    - water fixed charges $810 a year
+    - strata $4,184.80 a year
+    - the Depreciator diminishing-value schedule for 2025-26 to 2044-45
+  - Preloaded properties you haven't edited pick up updated figures automatically; anything you've changed is left alone.
+  - Tidier depreciation and expense boxes on a phone.
 - **1.01**
   - Red yearly figures check from each 1 July, with a pop-up, and a check report PDF to upload to Claude.
   - A photo for each property.

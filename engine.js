@@ -67,9 +67,10 @@
     const loanItems = (p.loanCosts || []).map(c => ({ ...c, amount: c.auto === "lmi" ? lmiEstimate(mainLoan, value, ctx.lmi) : N(c.amount) }));
     const all = [...items, ...loanItems];
     const eqItems = sum(all.filter(c => c.fund === "equity").map(c => c.amount)), cashItems = sum(all.filter(c => c.fund !== "equity").map(c => c.amount));
-    const equityLoan = p.equityLoan && p.equityLoan.amountMode === "manual" ? N(p.equityLoan.amount) : eqDep + eqItems;
+    const buffer = N(p.loanBuffer); // extra borrowed on the equity loan and held as cash — adds to debt and interest, not a purchase cost
+    const equityLoan = p.equityLoan && p.equityLoan.amountMode === "manual" ? N(p.equityLoan.amount) : eqDep + eqItems + buffer;
     const purchaseTotal = cashDep + eqDep + sum(items.map(c => c.amount)), loanCostTotal = sum(loanItems.map(c => c.amount));
-    return { price, value, cashDep, eqDep, mainAuto, mainLoan, equityLoan, totalDebt: mainLoan + equityLoan, items, loanItems,
+    return { price, value, cashDep, eqDep, mainAuto, mainLoan, equityLoan, buffer, totalDebt: mainLoan + equityLoan, items, loanItems,
       purchaseTotal, loanCostTotal, totalPurchaseExpenses: purchaseTotal + loanCostTotal, cashRequired: cashDep + cashItems, equityUsed: eqDep + eqItems,
       duty: sum(items.filter(c => c.auto === "duty" || /stamp|duty/i.test(c.label || "")).map(c => c.amount)),
       lvr: value > 0 ? (mainLoan + equityLoan) / value : 0 };
@@ -137,7 +138,9 @@
       const mgmt = mgmtPct * rent, letting = rent > 0 && ssMode !== "replace" ? letWeeks * pw1 * Math.pow(1 + rg, y - 1) : 0;
       let expenses = compat.expenses === "workbook" ? exp1 * infl : sum(items.map(e => e.amount)) + mgmt + letting;
       const pretax = rent - interest - principal - expenses;
-      const depY = (y <= dep.length ? dep[y - 1] : 0) + (income ? capWorks : 0);
+      // a depreciation schedule tied to financial years (p.depStartFy = the schedule's first year) lines up by year, wherever the projection starts
+      const di = p.depStartFy ? (+fy.slice(0, 4)) - (+String(p.depStartFy).slice(0, 4)) : y - 1;
+      const depY = (di >= 0 && di < dep.length ? dep[di] : 0) + (income ? capWorks : 0);
       const borrow = y <= borrowYears ? S.loanCostTotal / borrowYears : 0;
       const deductions = interest + expenses + depY + borrow;
       const net = rent - deductions;

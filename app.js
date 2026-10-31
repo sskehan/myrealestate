@@ -1,7 +1,7 @@
 "use strict";
 /* My Real Estate — investment property analyser for Shaun and Lyndsey. Data lives on each phone (IndexedDB) with a shared live copy in Dropbox.
    The numbers all come from engine.js; the starting rules and preloaded properties from data.js. */
-const APP_ID = "my-real-estate", APP_VERSION = "1.01", BACKUP_VERSION = 1;
+const APP_ID = "my-real-estate", APP_VERSION = "1.03", BACKUP_VERSION = 1;
 
 /* ================= storage ================= */
 const STORES = ["props", "files", "meta"];
@@ -211,7 +211,8 @@ function setupCard(p, r) {
     ${line("Total purchase expenses", "<b>" + money(st.totalPurchaseExpenses) + "</b>")}
     ${line("Cash needed", money(st.cashRequired))}${line("Equity used", money(st.equityUsed))}
     ${line("Main loan", money(st.mainLoan) + (st.mainLoan ? ` · ${pct(N(p.loan.rate), 2)} ${p.loan.type === "PI" ? "P&I" : "I/O"}` : ""))}
-    ${st.equityLoan ? line("Equity loan", money(st.equityLoan) + ` · ${pct(p.equityLoan && p.equityLoan.rate !== "" && p.equityLoan.rate != null ? N(p.equityLoan.rate) : N(p.loan.rate), 2)}`) : ""}
+    ${st.equityLoan ? line("Equity loan", money(st.equityLoan) + ` · ${pct(p.equityLoan && p.equityLoan.rate !== "" && p.equityLoan.rate != null ? N(p.equityLoan.rate) : N(p.loan.rate), 2)} ${p.equityLoan && p.equityLoan.type === "PI" ? "P&I" : "I/O"}`) : ""}
+    ${st.buffer ? line("Loan buffer (in the equity loan)", money(st.buffer)) : ""}
     ${line("Total borrowed / LVR", money(st.totalDebt) + " · " + pct(st.lvr))}
     ${r.owners.length ? line("Owners", r.owners.map(o => esc(pName(o.who)) + " " + pct(o.share, o.share * 100 % 1 ? 1 : 0)).join(", ")) : ""}
     </dl>${k < 0.999 ? `<p class="xs muted" style="margin:0">Purchase figures are for the whole property.</p>` : ""}</div>`;
@@ -378,21 +379,24 @@ function viewEdit(p) {
   const purchase = `<div class="g2">${fld("Purchase price", "price", "money", numIn(p.price))}${fld("Today's value", "marketValue", "money", numIn(p.marketValue), { hint: "Used for equity and LVR" })}</div>
     ${fld("Dutiable value (if different)", "dutyValue", "money", numIn(p.dutyValue || ""), { ph: "same as price", hint: "e.g. the land price on a house-and-land contract" })}
     <div class="g2">${fld("Cash deposit", "cashDeposit", "money", numIn(p.cashDeposit))}${fld("Equity deposit", "equityDeposit", "money", numIn(p.equityDeposit), { hint: "From the Equity Funds Loan" })}</div>
+    ${fld("Loan buffer (borrowed on the equity loan)", "loanBuffer", "money", numIn(p.loanBuffer || ""), { ph: "0", hint: "Extra borrowed and held as cash for holding costs — adds to the loan and interest, not a purchase cost" })}
     <h3>Purchase costs</h3>${costLines(p.purchaseCosts, "purchaseCosts")}
     <h3>Loan costs <span class="xs muted" style="font-weight:400">— written off over ${SET().borrowYears} years for tax</span></h3>${costLines(p.loanCosts, "loanCosts")}
     <dl class="kv"><dt>Total purchase expenses</dt><dd>${calc("tpe", money(st.totalPurchaseExpenses))}</dd><dt>Cash needed</dt><dd>${calc("cash", money(st.cashRequired))}</dd><dt>Equity used</dt><dd>${calc("eq", money(st.equityUsed))}</dd></dl>`;
-  const loan = `<label class="check"><input type="checkbox" data-act="loanManual" ${L.amountMode === "manual" ? "checked" : ""}> Set the main loan amount myself</label>
+  const loan = `<label class="check"><input type="checkbox" data-act="loanManual" ${L.amountMode === "manual" ? "checked" : ""}> Set the main loan balance myself (e.g. today's balance from your statement)</label>
     ${L.amountMode === "manual" ? fld("Main loan amount", "loan.amount", "money", numIn(L.amount)) : `<div class="field calc"><span class="lab">Main loan amount</span><div>${calc("main", money(st.mainLoan))} <span class="xs muted">= price − cash deposit − equity deposit</span></div></div>`}
-    <div class="g2">${fld("Interest rate", "loan.rate", "pct", pctIn(L.rate))}${sel("Repayments", "loan.type", L.type || "IO", [["IO", "Interest only"], ["PI", "Principal & interest"]])}</div>
-    <div class="g2">${L.type === "PI" ? "" : fld("Interest-only years", "loan.ioYears", "num", numIn(L.ioYears || 0), { hint: "0 = interest-only the whole time" })}${fld("Loan term", "loan.termYears", "num", numIn(L.termYears || 30), { unit: "yrs" })}</div>
-    <h3>Equity loan (deposit and costs paid from equity)</h3>
-    <div class="field calc"><span class="lab">Equity loan amount</span><div>${calc("eqLoan", money(st.equityLoan))} <span class="xs muted">= equity deposit + costs marked Equity</span></div></div>
-    <div class="g2">${fld("Equity loan rate", "equityLoan.rate", "pctBlank", pctIn(E.rate), { ph: "same as main", hint: "Leave blank for the main rate" })}${sel("Repayments", "equityLoan.type", E.type || "IO", [["IO", "Interest only"], ["PI", "Principal & interest"]])}</div>
+    <div class="g2">${fld("Interest rate", "loan.rate", "pct", pctIn(L.rate))}${sel("Repayments", "loan.type", L.type || "IO", [["IO", "Interest only"], ["PI", "P&I"]])}</div>
+    <div class="g2">${L.type === "PI" ? "" : fld("Interest-only years", "loan.ioYears", "num", numIn(L.ioYears || 0), { hint: "Then P&I for the rest of the term. 0 = interest-only the whole time" })}${fld("Loan term", "loan.termYears", "num", numIn(L.termYears || 30), { unit: "yrs" })}</div>
+    <h3>Equity loan (deposit, costs and buffer paid from equity)</h3>
+    <label class="check"><input type="checkbox" data-act="eqManual" ${E.amountMode === "manual" ? "checked" : ""}> Set this property's share of the equity loan balance myself</label>
+    ${E.amountMode === "manual" ? fld("Equity loan balance (this property's share)", "equityLoan.amount", "money", numIn(E.amount)) : `<div class="field calc"><span class="lab">Equity loan amount</span><div>${calc("eqLoan", money(st.equityLoan))} <span class="xs muted">= equity deposit + costs marked Equity + loan buffer</span></div></div>`}
+    <div class="g2">${fld("Equity loan rate", "equityLoan.rate", "pctBlank", pctIn(E.rate), { ph: "same as main", hint: "Leave blank for the main rate" })}${sel("Repayments", "equityLoan.type", E.type || "IO", [["IO", "Interest only"], ["PI", "P&I"]])}</div>
+    ${E.type === "PI" ? fld("Equity loan term left", "equityLoan.termYears", "num", numIn(E.termYears || L.termYears || 30), { unit: "yrs" }) : ""}
     <dl class="kv"><dt>Total borrowed</dt><dd>${calc("debt", money(st.totalDebt))}</dd><dt>LVR</dt><dd>${calc("lvr", pct(st.lvr))}</dd></dl>
     ${fld("Available equity is worked out at", "availLVR", "pct", pctIn(p.availLVR || 0.8), { hint: "of the property's value (80% avoids LMI)" })}`;
   const seasons = (SS.seasons || []);
   const rent = `<div class="g3">${fld("Rent per week", "rent.pw", "money", numIn(R.pw))}${fld("Weeks", "rent.weeks", "num", numIn(R.weeks || 52))}${fld("Vacant weeks", "rent.vacant", "num", numIn(R.vacant))}</div>
-    <div class="g2">${fld("Property management", "mgmtPct", "pct", pctIn(p.mgmtPct), { hint: "Incl. GST, % of rent collected" })}${fld("Letting fee", "lettingWeeks", "num", numIn(p.lettingWeeks), { unit: "wks", hint: "Weeks of rent incl. GST, each year" })}</div>
+    <div class="g2">${fld("Property management", "mgmtPct", "pct", pctIn(p.mgmtPct), { hint: "Incl. GST, % of rent collected" })}${fld("Leasing / renewal fee", "lettingWeeks", "num", numIn(p.lettingWeeks), { unit: "wks", hint: "Weeks of rent incl. GST charged each year (new lease or renewal)" })}</div>
     ${sel("Short-stay rental", "rent.shortStay.mode", SS.mode || "none", [["none", "Not used"], ["replace", "Instead of the standard rent"], ["add", "On top of the standard rent"]])}
     ${SS.mode && SS.mode !== "none" ? `<div class="lines">${seasons.map((s, i) => `<div class="g3" style="grid-template-columns:1.3fr .8fr 1fr .8fr 40px;align-items:end">
       ${fld("Season", `rent.shortStay.seasons.${i}.name`, "text", s.name)}${fld("Weeks", `rent.shortStay.seasons.${i}.weeks`, "num", numIn(s.weeks))}${fld("Per week", `rent.shortStay.seasons.${i}.pw`, "money", numIn(s.pw))}${fld("Vacant", `rent.shortStay.seasons.${i}.vacant`, "num", numIn(s.vacant))}
@@ -406,11 +410,16 @@ function viewEdit(p) {
     <dl class="kv"><dt>Management (year 1)</dt><dd>${calc("mgmt1", money(r.rows[0].mgmt))}</dd><dt>Letting fee (year 1)</dt><dd>${calc("let1", money(r.rows[0].letting))}</dd><dt>Total year 1</dt><dd>${calc("exp1", money(r.rows[0].expenses))}</dd></dl>
     <p class="xs muted" style="margin:0">Amounts are a year. Each grows with CPI; management and letting fees follow the rent.</p>`;
   const dep = p.depreciation || [];
-  const depr = `<div class="dep">${Array.from({ length: 10 }, (_, i) => `<label>Year ${i + 1}<input data-path="depreciation.${i}" data-kind="money" inputmode="decimal" value="${esc(dep[i] == null ? "" : numIn(dep[i]))}"></label>`).join("")}</div>
+  const fy0 = p.depStartFy || "", fyAdd = (f, n) => { const y = +f.slice(0, 4) + n; return `${y}-${p2((y + 1) % 100)}`; };
+  const lastFy = r.rows[r.rows.length - 1].fy, need = fy0 ? (+lastFy.slice(0, 4)) - (+fy0.slice(0, 4)) + 1 : 10;
+  const depN = Math.min(20, Math.max(10, need, dep.length));
+  const fyOpts = [["", "Years 1–10 of the projection"], ...Array.from({ length: 14 }, (_, i) => { const f = fyAdd(curFy(), i - 12); return [f, "Financial years, starting " + f]; })];
+  const depr = `${sel("The figures below are for", "depStartFy", fy0, fyOpts, { hint: fy0 ? "Each figure lines up with its own financial year, wherever the projection starts" : "Pick the schedule's first financial year to line it up exactly" })}
+    <div class="dep">${Array.from({ length: depN }, (_, i) => `<label>${fy0 ? fyAdd(fy0, i) : "Year " + (i + 1)}<input data-path="depreciation.${i}" data-kind="money" inputmode="decimal" value="${esc(dep[i] == null ? "" : numIn(dep[i]))}"></label>`).join("")}</div>
     <div class="row"><span class="small">Fill the empty years after the last one entered, reducing by</span><span class="inwrap" style="width:90px"><input id="depPct" type="text" inputmode="decimal" value="6" style="min-height:40px;border:1px solid var(--line-2);border-radius:8px;padding:0 26px 0 8px;width:100%;background:var(--surface)"><span class="u">%</span></span><button type="button" class="btn sm" data-act="depFill">Fill</button></div>
     <h3>Capital works (Div 43) — only if the figures above don't include it</h3>
     <div class="g2">${fld("Construction cost", "capWorksCost", "money", numIn(p.capWorksCost || ""), { ph: "leave blank", hint: "e.g. the build price" })}${fld("Rate a year", "capWorksRate", "pctBlank", pctIn(p.capWorksRate ?? ""), { ph: "2.5" })}</div>
-    <p class="xs muted" style="margin:0">Best: copy the yearly totals from your quantity surveyor's depreciation schedule into Years 1–10 (they normally include capital works, so leave construction cost blank). Capital works applies to residential buildings started after 15 Sept 1987, at 2.5% a year for 40 years.</p>
+    <p class="xs muted" style="margin:0">Best: copy the yearly totals from your quantity surveyor's depreciation schedule into the boxes above (they normally include capital works, so leave construction cost blank). Capital works applies to residential buildings started after 15 Sept 1987, at 2.5% a year for 40 years.</p>
     <dl class="kv"><dt>Depreciation claimed, year 1</dt><dd>${calc("dep1", money(r.rows[0].depreciation))}</dd></dl>`;
   const owners = `<div class="lines">${(p.owners || []).map((o, i) => `<div class="line"><select data-path="owners.${i}.who" data-kind="sel" aria-label="Owner">${ppl.map(x => `<option value="${x.id}" ${x.id === o.who ? "selected" : ""}>${esc(x.name)}${x.household ? "" : " (family)"}</option>`).join("")}</select>
       <span class="inwrap"><input data-path="owners.${i}.share" data-kind="pct" inputmode="decimal" value="${esc(pctIn(o.share))}" aria-label="Share"><span class="u">%</span></span>
@@ -469,7 +478,7 @@ function viewQuick() {
     <div class="g2">${qi("price", "Price", "money", q.price)}${qs("state", "State", q.state, STATES)}</div>
     <div class="g2">${qi("pw", "Expected rent per week", "money", q.pw)}${qi("rate", "Interest rate", "pct", q.rate)}</div>
     <div class="g2">${qi("depPct", "Deposit", "pct", q.depPct)}${qs("depFund", "Deposit & costs from", q.depFund, [["equity", "Equity loan"], ["cash", "Cash"]])}</div>
-    <div class="g2">${qs("type", "Repayments", q.type, [["IO", "Interest only"], ["PI", "Principal & interest"]])}${qi("strata", "Strata a year", "money", q.strata, { ph: "0" })}</div>
+    <div class="g2">${qs("type", "Repayments", q.type, [["IO", "Interest only"], ["PI", "P&I"]])}${qi("strata", "Strata a year", "money", q.strata, { ph: "0" })}</div>
     ${qi("rates", "Council rates a year", "money", q.rates || "", { ph: "estimate", hint: `Blank = ${pct(SET().defaults.ratesPct, 2)} of the price` })}</div>
     <div id="qOut"></div>
     <button type="button" class="btn big primary" data-act="quickSave">Save as a property I'm looking at</button>`;
@@ -660,7 +669,7 @@ function buildCheckPrint() {
       ...(r.income ? [["Rent", `${money(N(p.rent.pw))}/wk, ${N(p.rent.vacant)} vacant weeks`], ["Management / letting fee", `${pct(N(p.mgmtPct), 2)} / ${numIn(p.lettingWeeks)} weeks`]] : [["Rented", "No (not income-producing)"]]),
       ...(p.expenses || []).map(e => [esc(e.label) + " (a year)", money(e.amount)]),
       ["Growth: capital / rent / CPI", `${pct(N(p.growth.capital), 2)} / ${pct(N(p.growth.rent), 2)} / ${pct(N(p.growth.cpi), 2)}`],
-      ["Depreciation yrs 1–10", (p.depreciation || []).map(v => Math.round(N(v)).toLocaleString("en-AU")).join(", ") || "none"],
+      [p.depStartFy ? "Depreciation from " + p.depStartFy : "Depreciation yrs 1–10", (p.depreciation || []).map(v => Math.round(N(v)).toLocaleString("en-AU")).join(", ") || "none"],
       ...(p.placeholders || []).map(x => ["Still to confirm", esc(x)])];
     return `<h2>${esc(p.name)} — ${esc(addrOf(p))} (${esc(STATUS[p.status] || "")})</h2>` + t(["Item", "Value in the app", "Checked value", "Where to check"], rows.map(r => [r[0], r[1], "", "your statements"])); }).join("");
   $("#print").innerHTML = `<div class="chkrep"><h1>My Real Estate — yearly figures check, ${esc(fy)}</h1>
@@ -698,7 +707,7 @@ function buildPrint(p) {
       ${kv("Rent", money(N(p.rent && p.rent.pw)) + "/wk, " + N(p.rent && p.rent.vacant) + " vacant wks")}${kv("Management / letting", pct(N(p.mgmtPct), 2) + " / " + numIn(p.lettingWeeks) + " wks")}
       ${(p.expenses || []).filter(e => N(e.amount)).map(e => kv(e.label, money(e.amount))).join("")}</tbody></table>
     <table><tbody>${kv("Capital growth", pct(N(p.growth && p.growth.capital), 2))}${kv("Rent growth", pct(N(p.growth && p.growth.rent), 2))}${kv("CPI", pct(N(p.growth && p.growth.cpi), 2))}
-      ${kv("Depreciation yrs 1–10", (p.depreciation || []).map(v => Math.round(N(v)).toLocaleString("en-AU")).join(", ") || "none")}
+      ${kv(p.depStartFy ? "Depreciation from " + p.depStartFy : "Depreciation yrs 1–10", (p.depreciation || []).map(v => Math.round(N(v)).toLocaleString("en-AU")).join(", ") || "none")}
       ${kv("Owners", r.owners.map(o => esc(pName(o.who)) + " " + pct(o.share, 1)).join(", "))}
       ${people().filter(x => x.household && r.owners.some(o => o.who === x.id)).map(x => kv(x.name + "'s taxable income", money(x.income))).join("")}
       ${kv("Tax rules", [...new Set(r.rows.map(x => x.rules))].join(", ") + " (resident rates, LITO, Medicare)")}</tbody></table></div>
@@ -731,13 +740,14 @@ document.addEventListener("click", async e => {
     case "seasonAdd": if (p) { const ss = p.rent.shortStay = p.rent.shortStay || { mode: "add", seasons: [] }; ss.seasons = ss.seasons || []; ss.seasons.push({ name: ["Peak", "Mid", "Low"][ss.seasons.length] || "Season", weeks: 13, pw: 0, vacant: 3 }); await saveProp(p); S._keepScroll = true; render(); } break;
     case "autoOff": if (p) { const it = getPath(p, el.dataset.base)[+el.dataset.i]; const st = result(p).setup; it.amount = Math.round((el.dataset.base === "purchaseCosts" ? st.items : st.loanItems)[+el.dataset.i].amount); it.auto = null; await saveProp(p); S._keepScroll = true; render(); } break;
     case "autoOn": if (p) { const it = getPath(p, el.dataset.base)[+el.dataset.i]; it.auto = el.dataset.auto; await saveProp(p); S._keepScroll = true; render(); } break;
+    case "eqManual": if (p) { p.equityLoan = p.equityLoan || {}; if (el.checked) { p.equityLoan.amountMode = "manual"; p.equityLoan.amount = Math.round(result(p).setup.equityLoan * 100) / 100; } else p.equityLoan.amountMode = "auto"; await saveProp(p); S._keepScroll = true; render(); } break;
     case "loanManual": if (p) { p.loan = p.loan || {}; if (el.checked) { p.loan.amountMode = "manual"; p.loan.amount = result(p).setup.mainLoan; } else p.loan.amountMode = "auto"; await saveProp(p); S._keepScroll = true; render(); } break;
     case "ownerAdd": if (p) { p.owners = p.owners || []; const used = new Set(p.owners.map(o => o.who)); const nx = people().find(x => !used.has(x.id)) || people()[0]; p.owners.push({ who: nx.id, share: 0 }); await saveProp(p); S._keepScroll = true; render(); } break;
     case "ownerSplit": if (p && (p.owners || []).length) { p.owners.forEach(o => o.share = 1 / p.owners.length); await saveProp(p); S._keepScroll = true; render(); } break;
-    case "depFill": if (p) { const pc = (num($("#depPct").value) ?? 6) / 100, d = Array.from({ length: 10 }, (_, i) => N((p.depreciation || [])[i]));
-      let last = -1; for (let i = 0; i < 10; i++) if (d[i]) last = i;
-      if (last < 0) { toast("Enter at least year 1 first"); break; } if (last === 9) { toast("All 10 years already have figures"); break; }
-      for (let i = last + 1; i < 10; i++) d[i] = Math.round(d[i - 1] * (1 - pc)); p.depreciation = d; await saveProp(p); toast(`Years ${last + 2}–10 filled`); S._keepScroll = true; render(); } break;
+    case "depFill": if (p) { const pc = (num($("#depPct").value) ?? 6) / 100, n = Math.max(10, $$(".dep input").length), d = Array.from({ length: n }, (_, i) => N((p.depreciation || [])[i]));
+      let last = -1; for (let i = 0; i < n; i++) if (d[i]) last = i;
+      if (last < 0) { toast("Enter the first year first"); break; } if (last === n - 1) { toast("Every year already has a figure"); break; }
+      for (let i = last + 1; i < n; i++) d[i] = Math.round(d[i - 1] * (1 - pc)); p.depreciation = d; await saveProp(p); toast(`${n - last - 1} later years filled`); S._keepScroll = true; render(); } break;
     case "photoDel": if (p && confirm("Remove this photo?")) { await removePhoto(p); S._keepScroll = true; render(); } break;
     case "goCheck": closeModal(); S.open = null; S.tab = "settings"; S.set = "check"; render(); break;
     case "checkPdf": closeModal(); buildCheckPrint(); setTimeout(() => window.print(), 50); break;
@@ -784,7 +794,7 @@ document.addEventListener("change", async e => {
     const p = getP(S.open); if (!p) return;
     const v = kinds[el.dataset.kind](el.value, el); setPath(p, el.dataset.path, v);
     await saveProp(p);
-    const structural = /^(status|state|loan\.type|equityLoan\.type|rent\.shortStay\.mode|incomeProducing|name)$/.test(el.dataset.path) || el.dataset.path.endsWith(".fund") || el.dataset.path.endsWith(".who");
+    const structural = /^(status|state|loan\.type|equityLoan\.type|rent\.shortStay\.mode|incomeProducing|name|depStartFy)$/.test(el.dataset.path) || el.dataset.path.endsWith(".fund") || el.dataset.path.endsWith(".who");
     if (structural) { S._keepScroll = true; render(); } else updateCalcs(p);
     return;
   }
@@ -855,7 +865,7 @@ async function restoreFile(f) {
      live/myrealestate.json           properties and settings — sent a few seconds after every change (Wi‑Fi only unless switched off)
      snapshots/myrealestate-*.json    one per day, plus one before every restore (kept 60 days)
      archive/myrealestate-YYYY-MM.json   the last copy of each month (kept 8 years)   */
-const DBX_APP_KEY = ""; // public App key for the My Real Estate Dropbox app — paste it in the app (Settings → Dropbox) or put it here
+const DBX_APP_KEY = "k12i1gnu147hl61"; // public App key for the MyRealEstate Dropbox app (the App secret is never used)
 const DBX_TOKEN = "https://api.dropboxapi.com/oauth2/token";
 const DBX_REDIRECT = location.origin + location.pathname.replace(/index\.html$/, "");
 const LIVE = "/live/myrealestate.json";
@@ -1097,15 +1107,31 @@ function dropboxPanel() {
 }
 
 /* ================= start ================= */
+/* newer figures for the preloaded properties: replace a preloaded property only if nobody has edited it on this phone (no _t);
+   anything that's been changed, or deleted, is left alone. Never marks changes for Dropbox — each phone does the same. */
+async function seedUpdate() {
+  const v = SEED.SEED_VERSION || 1; if ((S.meta.seedVersion || 1) >= v) return;
+  const tomb = S.meta.tomb || {}; let n = 0;
+  _quiet++;
+  try { for (const sp of SEED.PROPERTIES) { const cur = S.props.find(x => x.id === sp.id); if (tomb[sp.id] || (cur && cur._t)) continue; if (!cur && S.meta.seedVersion) continue;
+      const c = clone(sp); if (cur && cur.photo) c.photo = cur.photo; await tx("props", "readwrite", os => os.put(c)); n++; } } finally { _quiet--; }
+  // incomes: if Settings → People still holds the old preloaded figures, move them to the new ones
+  if (S.meta.settings && S.meta.settings.people) { const old = SEED.OLD_INCOMES || {}; let ch = false;
+    for (const sp of SEED.SETTINGS.people) { const cur = S.meta.settings.people.find(x => x.id === sp.id); if (cur && old[sp.id] != null && cur.income === old[sp.id] && cur.income !== sp.income) { cur.income = sp.income; delete cur.check; ch = true; } }
+    if (ch) S.meta.settings._t = Date.now(); }
+  S.meta.seedVersion = v; await saveMeta(); S.props = await dbAll("props"); resCache.clear();
+  if (n && S.meta.created !== todayISO()) setTimeout(() => toast("Preloaded figures updated from your documents"), 600);
+}
 async function boot() {
   await openDB();
   const m = (await dbAll("meta")).find(x => x.id === "meta");
   S.meta = m || { created: todayISO(), deviceId: uid("d") };
   S.props = await dbAll("props");
-  if (!m) { // first open on this phone: preloaded properties (they carry fixed ids and _t 0, so any edit from either phone wins when syncing)
+  if (!m) { S.meta.seedVersion = SEED.SEED_VERSION || 1; // first open on this phone: preloaded properties (they carry fixed ids and _t 0, so any edit from either phone wins when syncing)
     _quiet++; try { for (const p of SEED.PROPERTIES) await tx("props", "readwrite", os => os.put(clone(p))); } finally { _quiet--; }
     S.props = await dbAll("props"); await saveMeta();
   }
+  await seedUpdate();
   const back = await dbxReturn();
   if (back) { S.tab = "settings"; S.set = "backup"; }
   const q = new URLSearchParams(location.search);
