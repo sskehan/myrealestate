@@ -1,4 +1,4 @@
-# My Real Estate — investment property analyser (version 1.04)
+# My Real Estate — investment property analyser (version 1.06)
 
 It does what the 2025 Property Analyser Calculator workbook did: a 10-year report for each property showing value, loans, equity, yields, cash flow before and after tax, tax refunds per owner, wealth gained and who pays. On top of that it has:
 - saved properties and scenarios
@@ -68,7 +68,7 @@ The first time it opens, it comes with **Schofields, Mt Duneed, Moulden** and th
   - Purchase and loan costs are each marked **Cash** or **Equity**.
   - The equity loan can have its own rate.
 - **Quick check:**
-  - Enter the price, state, rent, deposit and rate, and see the result straight away.
+  - Enter the price, state, rent, deposit, rate, council rates, strata and land tax, the loan buffer, and the building type for depreciation, and see the result straight away.
   - **Save as a property I'm looking at** keeps it.
 - **Compare:** pick two or three properties or scenarios to see them side by side. Green marks the best value.
 - **Photos:** each property can have one photo (Edit → Details → **Add photo**). Take one or pick one from the gallery.
@@ -141,6 +141,15 @@ Run in "workbook mode", the engine reproduces the Schofields and Mt Duneed workb
 When a file changes, `APP_VERSION` in `app.js` and `VERSION` in `sw.js` change together. Versions go 1.0, 1.01, 1.02 and so on.
 
 ## Version history
+- **1.06** — New install identity for the app, so Chrome installs it fresh after a blocked Play Protect attempt ("Could not open app"). No other changes.
+- **1.05**
+  - Quick Check now includes:
+    - **depreciation**: brand new, established (built after Sept 1987) or older, worked out from the building cost (or type a year-1 figure from a quantity surveyor)
+    - **land tax**
+    - the **loan buffer**
+  - A new tile shows year-1 depreciation and how it was worked out.
+  - Saving a Quick Check carries all of these into the property, with the depreciation estimate listed under "Still to confirm".
+  - New defaults: loan buffer ($20,000), building cost as a % of price (50%), new-build plant & equipment ($5,000 in year 1, reducing 20% a year).
 - **1.04**
   - Preloaded properties that were edited on a phone before an update now get the corrected figures too. Only fields that still hold an older preloaded figure are replaced, so anything you typed in (today's value, photo, your own figures) is kept.
   - "Still to confirm" items that the new figures answer are removed; ticked-off ones stay ticked off.

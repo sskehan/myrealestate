@@ -49,6 +49,7 @@
   /* defaults for a new property / Quick Check (the original workbook's starting values unless noted) */
   const DEFAULTS = { capital: 0.05, rent: 0.05, cpi: 0.03, rate: 0.06, type: "IO", termYears: 30, vacant: 2, mgmtPct: 0.077, lettingWeeks: 1.1, availLVR: 0.80,
     legals: 2500, valuation: 380, establishment: 600, buildingIns: 1200, landlordIns: 450, ratesPct: 0.0045, depositPct: 0.20, depositFund: "equity",
+    buffer: 20000, buildPct: 0.50, plantNew: 5000, plantDecline: 0.20,
     owners: [{ who: "p-shaun", share: 0.5 }, { who: "p-lyndsey", share: 0.5 }] };
 
   const SETTINGS = { taxYears: TAX_YEARS, duty: DUTY, lmi: LMI, people: PEOPLE, defaults: DEFAULTS, borrowYears: 5, rulesChecked: "2026-11-01", rulesCheckedFY: "2026-27" };

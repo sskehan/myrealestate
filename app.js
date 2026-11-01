@@ -1,7 +1,7 @@
 "use strict";
 /* My Real Estate — investment property analyser for Shaun and Lyndsey. Data lives on each phone (IndexedDB) with a shared live copy in Dropbox.
    The numbers all come from engine.js; the starting rules and preloaded properties from data.js. */
-const APP_ID = "my-real-estate", APP_VERSION = "1.04", BACKUP_VERSION = 1;
+const APP_ID = "my-real-estate", APP_VERSION = "1.06", BACKUP_VERSION = 1;
 
 /* ================= storage ================= */
 const STORES = ["props", "files", "meta"];
@@ -458,9 +458,19 @@ function updateCalcs(p) {
 async function saveProp(p) { await dbPut("props", p); }
 
 /* ---------- Quick Check ---------- */
-function quickState() { const d = SET().defaults; return { price: 650000, state: "NSW", pw: 600, depPct: d.depositPct, depFund: d.depositFund, rate: d.rate, type: d.type, strata: 0, rates: 0, ...(S.meta.quick || {}) }; }
+function quickState() { const d = SET().defaults; return { price: 650000, state: "NSW", pw: 600, depPct: d.depositPct, depFund: d.depositFund, rate: d.rate, type: d.type, strata: 0, rates: 0, age: "new", buildCost: 0, depY1: 0, landTax: 0, buffer: d.buffer, ...(S.meta.quick || {}) }; }
+/* Quick Check depreciation estimate: capital works (2.5% of the building cost) for buildings started after 15 Sept 1987, plus plant & equipment for a
+   brand-new property only (second-hand plant isn't deductible for residential property bought after 9 May 2017). A typed year-1 figure overrides it. */
+function quickDep(q) {
+  const d = SET().defaults, price = N(q.price), build = N(q.buildCost) || Math.round(price * N(d.buildPct));
+  if (N(q.depY1) > 0) { const a = [Math.round(N(q.depY1))]; while (a.length < 10) a.push(Math.round(a[a.length - 1] * 0.94)); return { dep: a, capWorksCost: 0, y1: a[0], cw: 0, plant: a[0], typed: true, build }; }
+  if (q.age === "old") return { dep: [], capWorksCost: 0, y1: 0, cw: 0, plant: 0, build };
+  const cw = Math.round(build * 0.025), plantY1 = q.age === "new" ? N(d.plantNew) : 0;
+  const plant = Array.from({ length: 10 }, (_, i) => Math.round(plantY1 * Math.pow(1 - N(d.plantDecline), i)));
+  return { dep: plantY1 ? plant : [], capWorksCost: build, y1: cw + plantY1, cw, plant: plantY1, build };
+}
 function quickProp(q) {
-  const d = SET().defaults, dep = Math.round(N(q.price) * N(q.depPct));
+  const d = SET().defaults, dep = Math.round(N(q.price) * N(q.depPct)), qd = quickDep(q);
   return { id: "quick", name: "Quick check", status: "looking", state: q.state, startDate: todayISO(), incomeProducing: true, price: N(q.price), marketValue: N(q.price),
     cashDeposit: q.depFund === "cash" ? dep : 0, equityDeposit: q.depFund === "cash" ? 0 : dep,
     purchaseCosts: [{ label: "Stamp duty", amount: 0, fund: q.depFund, auto: "duty" }, { label: "Legals (solicitor/conveyancer)", amount: d.legals, fund: q.depFund }],
@@ -468,8 +478,10 @@ function quickProp(q) {
     loan: { amountMode: "auto", rate: N(q.rate), type: q.type, ioYears: 0, termYears: d.termYears }, equityLoan: { rate: "", type: "IO" },
     rent: { weeks: 52, pw: N(q.pw), vacant: d.vacant, shortStay: { mode: "none", seasons: [] } }, mgmtPct: d.mgmtPct, lettingWeeks: d.lettingWeeks,
     expenses: [{ id: "e-rates", label: "Council rates", amount: N(q.rates) || Math.round(N(q.price) * d.ratesPct) }, { id: "e-bi", label: "Building insurance", amount: N(q.strata) ? 0 : d.buildingIns },
-      { id: "e-li", label: "Landlord insurance", amount: d.landlordIns }, { id: "e-strata", label: "Strata / body corporate", amount: N(q.strata) }, { id: "e-lt", label: "Land tax", amount: 0 }],
-    growth: { capital: d.capital, rent: d.rent, cpi: d.cpi }, depreciation: [], availLVR: d.availLVR, owners: clone(d.owners), placeholders: ["Depreciation (none assumed)", "Land tax (none assumed)"] };
+      { id: "e-li", label: "Landlord insurance", amount: d.landlordIns }, { id: "e-strata", label: "Strata / body corporate", amount: N(q.strata) }, { id: "e-lt", label: "Land tax", amount: N(q.landTax) }],
+    growth: { capital: d.capital, rent: d.rent, cpi: d.cpi }, depreciation: qd.dep, capWorksCost: qd.capWorksCost || "", availLVR: d.availLVR, owners: clone(d.owners), loanBuffer: N(q.buffer),
+    placeholders: [qd.typed ? "Depreciation (year-1 figure typed in Quick Check) — get a quantity surveyor's schedule" : q.age === "old" ? "Depreciation (none — built before Sept 1987)" : `Depreciation estimated (${q.age === "new" ? "new build" : "established"}: building cost ${money(qd.build)} × 2.5%${qd.plant ? ` + plant ${money(qd.plant)}` : ""}) — get a quantity surveyor's schedule`,
+      ...(N(q.landTax) ? [] : ["Land tax (none assumed)"])] };
 }
 function viewQuick() {
   const q = quickState(), qi = (k, label, kind, val, o = {}) => `<div class="field"><label for="q-${k}">${label}</label><span class="inwrap ${kind === "money" ? "pre" : ""}"><input id="q-${k}" data-q="${k}" data-kind="${kind}" type="text" inputmode="decimal" value="${esc(kind === "pct" ? pctIn(val) : numIn(val))}" ${o.ph ? `placeholder="${o.ph}"` : ""}><span class="u">${kind === "money" ? "$" : kind === "pct" ? "%" : ""}</span></span>${o.hint ? `<span class="hint">${o.hint}</span>` : ""}</div>`;
@@ -479,12 +491,16 @@ function viewQuick() {
     <div class="g2">${qi("pw", "Expected rent per week", "money", q.pw)}${qi("rate", "Interest rate", "pct", q.rate)}</div>
     <div class="g2">${qi("depPct", "Deposit", "pct", q.depPct)}${qs("depFund", "Deposit & costs from", q.depFund, [["equity", "Equity loan"], ["cash", "Cash"]])}</div>
     <div class="g2">${qs("type", "Repayments", q.type, [["IO", "Interest only"], ["PI", "P&I"]])}${qi("strata", "Strata a year", "money", q.strata, { ph: "0" })}</div>
-    ${qi("rates", "Council rates a year", "money", q.rates || "", { ph: "estimate", hint: `Blank = ${pct(SET().defaults.ratesPct, 2)} of the price` })}</div>
+    <div class="g2">${qi("rates", "Council rates a year", "money", q.rates || "", { ph: "estimate", hint: `Blank = ${pct(SET().defaults.ratesPct, 2)} of the price` })}${qi("landTax", "Land tax a year", "money", q.landTax || "", { ph: "0" })}</div>
+    ${qi("buffer", "Loan buffer (on the equity loan)", "money", q.buffer || "", { ph: "0", hint: "Extra borrowed and held as cash — adds interest, not a purchase cost" })}
+    <h3 style="margin-top:4px">Depreciation</h3>
+    ${qs("age", "Building", q.age, [["new", "Brand new (never lived in)"], ["est", "Established — built after Sept 1987"], ["old", "Built before Sept 1987"]])}
+    <div class="g2">${qi("buildCost", "Building cost", "money", q.buildCost || "", { ph: "estimate", hint: `Blank = ${pct(SET().defaults.buildPct, 0)} of the price. For established homes use the original build cost.` })}${qi("depY1", "Or depreciation, year 1", "money", q.depY1 || "", { ph: "estimate", hint: "From a quantity surveyor's estimate — overrides the estimate" })}</div></div>
     <div id="qOut"></div>
     <button type="button" class="btn big primary" data-act="quickSave">Save as a property I'm looking at</button>`;
 }
 function paintQuick() {
-  const el = $("#qOut"); if (!el) return; const q = quickState(), p = quickProp(q), c = ctx(), r = Engine.run(p, c), s = r.summary, st = r.setup;
+  const el = $("#qOut"); if (!el) return; const q = quickState(), p = quickProp(q), c = ctx(), r = Engine.run(p, c), s = r.summary, st = r.setup, qd = quickDep(q);
   const ber = Engine.breakEvenRent(p, c);
   el.innerHTML = `<div class="tiles">
     <div class="tile"><small>After tax, year 1</small><strong class="${cls(s.weekly1)}">${wk(s.weekly1)}</strong><em>${money(r.rows[0].after)} a year</em></div>
@@ -495,9 +511,10 @@ function paintQuick() {
     <div class="tile"><small>Total borrowed</small><strong>${money(st.totalDebt)}</strong><em>LVR ${pct(st.lvr)}${st.loanItems.find(x => x.auto === "lmi" && x.amount) ? " · LMI " + money(st.loanItems.find(x => x.auto === "lmi").amount) : ""}</em></div>
     <div class="tile"><small>Turns positive</small><strong>${s.breakEven ? "Year " + s.breakEven : "Not in 10 yrs"}</strong><em>after tax</em></div>
     <div class="tile"><small>Equity in year 10</small><strong>${money(s.equity10)}</strong><em>at ${pct(SET().defaults.capital, 1)} growth</em></div>
-    <div class="tile"><small>Rent to break even</small><strong>${ber == null ? "—" : wk(Math.ceil(ber))}</strong><em>after tax, year 1</em></div></div>
+    <div class="tile"><small>Rent to break even</small><strong>${ber == null ? "—" : wk(Math.ceil(ber))}</strong><em>after tax, year 1</em></div>
+    <div class="tile"><small>Depreciation, year 1</small><strong>${money(r.rows[0].depreciation)}</strong><em>${qd.typed ? "as typed" : q.age === "old" ? "none before Sept 1987" : `capital works ${money(qd.cw)}${qd.plant ? " + plant " + money(qd.plant) : ""}`}</em></div></div>
     <div class="card"><h2>Cash flow per week</h2>${chartCash(r)}<div class="legend"><span><i style="background:var(--c2)"></i>Before tax</span><span><i style="background:var(--c1)"></i>After tax</span></div></div>
-    <p class="xs muted" style="margin:0 2px">Assumes ${SET().defaults.vacant} vacant weeks, ${pct(SET().defaults.mgmtPct, 1)} management, no depreciation and no land tax. Tax refunds use ${people().filter(x => x.household).map(x => esc(x.name)).join(" and ")}'s incomes, owned ${(SET().defaults.owners || []).map(o => pct(o.share, 0)).join("/")}.</p>`;
+    <p class="xs muted" style="margin:0 2px">Also uses your defaults: ${SET().defaults.vacant} vacant weeks, ${pct(SET().defaults.mgmtPct, 1)} management, ${numIn(SET().defaults.lettingWeeks)} weeks letting fee, legals ${money(SET().defaults.legals)}, ${pct(SET().defaults.capital, 1)} growth. Depreciation is an estimate until you have a quantity surveyor's schedule. Tax refunds use ${people().filter(x => x.household).map(x => esc(x.name)).join(" and ")}'s incomes, owned ${(SET().defaults.owners || []).map(o => pct(o.share, 0)).join("/")}.</p>`;
 }
 
 /* ---------- Compare ---------- */
@@ -614,6 +631,8 @@ function viewDefaults(s) {
     <div class="g2">${di("legals", "Legals", "money")}${di("valuation", "Valuation", "money")}</div>
     <div class="g2">${di("establishment", "Loan establishment", "money")}${di("landlordIns", "Landlord insurance", "money")}</div>
     <div class="g2">${di("buildingIns", "Building insurance (houses)", "money")}${di("ratesPct", "Council rates (% of price)", "pct")}</div>
+    <div class="g2">${di("buffer", "Loan buffer (equity loan)", "money")}${di("buildPct", "Building cost (% of price)", "pct")}</div>
+    <div class="g2">${di("plantNew", "Plant & equipment, yr 1 (new build)", "money")}${di("plantDecline", "Plant reduces each year by", "pct")}</div>
     <div class="g2">${di("availLVR", "Available equity at", "pct")}<div class="field"><label>Deposit & costs from</label><select data-rule="defaults.depositFund" data-kind="sel"><option value="equity" ${d.depositFund !== "cash" ? "selected" : ""}>Equity loan</option><option value="cash" ${d.depositFund === "cash" ? "selected" : ""}>Cash</option></select></div></div>
     <p class="xs muted" style="margin:0">New properties are owned ${(d.owners || []).map(o => esc(pName(o.who)) + " " + pct(o.share, 0)).join(", ")}; change owners per property.</p></div>`;
 }
